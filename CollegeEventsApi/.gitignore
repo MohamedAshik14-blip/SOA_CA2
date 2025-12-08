@@ -1,0 +1,22 @@
+# Build artifacts
+bin/
+obj/
+CollegeEventsApi/bin/
+CollegeEventsApi/obj/
+
+# Database
+*.db
+
+# Rider / VS Code folders
+.idea/
+.vscode/
+
+# macOS system files
+.DS_Store
+
+# User-specific
+*.user
+*.suo
+
+# Logs
+*.log

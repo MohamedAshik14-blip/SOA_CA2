@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>DKIT College Events</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app-shell">
+
+    <!-- TOP NAV -->
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-logo">🎓</span>
+            <span class="brand-text">
+                <strong>DKIT</strong> Events
+            </span>
+        </div>
+
+        <nav class="nav">
+            <button class="nav-link active" data-view="homeView">Home</button>
+            <button class="nav-link" data-view="eventsView">Events</button>
+            <button class="nav-link" data-view="accountView">My Account</button>
+        </nav>
+
+        <div class="nav-auth">
+            <span id="navUser" class="nav-user">Guest</span>
+            <button id="navAuthBtn" class="btn-outline" onclick="openAuthModal()">
+                Login / Register
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+        <!-- HOME VIEW -->
+        <section id="homeView" class="view view-active">
+            <div class="hero">
+                <div class="hero-text">
+                    <h1>Welcome to DKIT College Events</h1>
+                    <p>
+                        Discover hackathons, workshops, guest lectures and more.
+                        Register, check in, and track your participation with a modern event system.
+                    </p>
+                    <div class="hero-actions">
+                        <button class="btn-primary" onclick="openAuthModal()">Get Started</button>
+                        <button class="btn-ghost" data-view-link="eventsView">Browse Events</button>
+                    </div>
+                    <div class="hero-tags">
+                        <span class="tag">Real-time check-in</span>
+                        <span class="tag">Secure JWT login</span>
+                        <span class="tag">Built with ASP.NET & EF Core</span>
+                    </div>
+                </div>
+                <div class="hero-card">
+                    <h3>Next Event Preview</h3>
+                    <p>See what’s happening on campus.</p>
+                    <div id="homeEventsPreview" class="hero-events-preview">
+                        <p class="muted">Loading upcoming events...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- EVENTS VIEW -->
+        <section id="eventsView" class="view">
+            <h2 class="section-title">Events</h2>
+
+            <div class="grid">
+                <div class="card">
+                    <h3>Create Event <span class="chip">Admin / Organiser</span></h3>
+                    <p class="muted small">
+                        You must be logged in. Any authenticated user can create events in this demo.
+                    </p>
+
+                    <label>Title</label>
+                    <input id="eventTitle" type="text" placeholder="Hackathon 2025" />
+
+                    <label>Description</label>
+                    <input id="eventDescription" type="text" placeholder="48-hour coding marathon" />
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label>Start</label>
+                            <input id="eventStart" type="datetime-local" />
+                        </div>
+                        <div class="field">
+                            <label>End</label>
+                            <input id="eventEnd" type="datetime-local" />
+                        </div>
+                    </div>
+
+                    <label>Capacity</label>
+                    <input id="eventCapacity" type="number" value="50" min="1" />
+
+                    <button class="btn-primary full-width" onclick="createEvent()">Create Event</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>All Events</h3>
+                        <button class="btn-icon" onclick="loadEvents()" title="Refresh">
+                            ⟳
+                        </button>
+                    </div>
+                    <ul id="eventsList" class="list"></ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- ACCOUNT / REGISTRATION VIEW -->
+        <section id="accountView" class="view">
+            <h2 class="section-title">My Account & Registrations</h2>
+
+            <div class="grid">
+                <div class="card">
+                    <h3>Quick Register for Event</h3>
+                    <p class="muted small">
+                        Enter an event ID (from the Events tab) to register for it.
+                    </p>
+                    <label>Event Id</label>
+                    <input id="regEventId" type="number" min="1" />
+                    <button class="btn-primary full-width" onclick="registerForEvent()">Register</button>
+                </div>
+
+                <div class="card">
+                    <h3>My Registrations</h3>
+                    <p class="muted small">
+                        You can check in and out directly from the list below.
+                    </p>
+                    <button class="btn-outline full-width" onclick="loadMyRegistrations()">Refresh List</button>
+                    <ul id="myRegistrationsList" class="list"></ul>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- STATUS / TOAST -->
+    <div id="status" class="toast"></div>
+
+    <!-- AUTH MODAL -->
+    <div id="authModal" class="modal-backdrop hidden" onclick="backdropClick(event)">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="authModalTitle">Welcome</h3>
+                <button class="btn-icon" onclick="closeAuthModal()">✕</button>
+            </div>
+
+            <div class="modal-tabs">
+                <button id="tabLogin" class="modal-tab active" onclick="showLogin()">Login</button>
+                <button id="tabRegister" class="modal-tab" onclick="showRegister()">Register</button>
+            </div>
+
+            <div id="loginForm" class="modal-body">
+                <label>Student Number</label>
+                <input id="loginStudentNumber" type="text" placeholder="D00123456" />
+
+                <label>Password</label>
+                <input id="loginPassword" type="password" />
+
+                <button class="btn-primary full-width" onclick="login()">Login</button>
+            </div>
+
+            <div id="registerForm" class="modal-body hidden">
+                <label>Student Number</label>
+                <input id="regStudentNumber" type="text" placeholder="D00123456" />
+
+                <label>Full Name</label>
+                <input id="regFullName" type="text" placeholder="Your Name" />
+
+                <label>Email</label>
+                <input id="regEmail" type="email" placeholder="you@example.com" />
+
+                <label>Password</label>
+                <input id="regPassword" type="password" />
+
+                <button class="btn-primary full-width" onclick="register()">Create Account</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
