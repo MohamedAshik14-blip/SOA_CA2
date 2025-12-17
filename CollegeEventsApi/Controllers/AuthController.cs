@@ -45,3 +45,28 @@ namespace CollegeEventsApi.Controllers
 
             return Ok(new { message = "Registered" });
         }
+
+        [HttpPost("login")]
+        public async Task<ActionResult> Login(StudentLoginDto dto)
+        {
+            dto.StudentNumber = dto.StudentNumber.Trim();
+
+            var student = await _context.Students.SingleOrDefaultAsync(s => s.StudentNumber == dto.StudentNumber);
+            if (student == null) return Unauthorized("Invalid credentials");
+
+            if (!_auth.VerifyPassword(dto.Password, student.PasswordHash, student.PasswordSalt))
+                return Unauthorized("Invalid credentials");
+
+            var token = _auth.CreateToken(student);
+            var role = _auth.GetRole(student);
+
+            return Ok(new
+            {
+                token,
+                role,
+                studentNumber = student.StudentNumber,
+                fullName = student.FullName
+            });
+        }
+    }
+}
