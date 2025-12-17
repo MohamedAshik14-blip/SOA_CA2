@@ -116,7 +116,7 @@ namespace CollegeEventsApi.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             var s = await _context.Students
-                .Include(x => x.Registrations) // assumes Student has Registrations nav property
+                .Include(x => x.Registrations) 
                 .FirstOrDefaultAsync(x => x.Id == id);
 
             if (s == null) return NotFound();
