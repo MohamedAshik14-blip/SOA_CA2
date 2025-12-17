@@ -21,4 +21,18 @@ namespace CollegeEventsApi.Dtos
         public string FullName { get; set; } = null!;
         public string Email { get; set; } = null!;
     }
+      public class StudentAdminUpdateDto
+    {
+        public string FullName { get; set; } = null!;
+        public string Email { get; set; } = null!;
+
+  
+        public string Role { get; set; } = "Student";
+    }
+
+
+    public class StudentAdminPasswordDto
+    {
+        public string NewPassword { get; set; } = null!;
+    }
 }
