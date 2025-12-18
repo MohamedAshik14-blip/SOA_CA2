@@ -20,7 +20,7 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // Make the app think we are logged in as an Admin student.
+  
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, "1"),           
