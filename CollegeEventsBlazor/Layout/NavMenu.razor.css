@@ -1,0 +1,104 @@
+:root{
+    --bg:#050816;
+    --surface: rgba(15,23,42,.88);
+    --border: rgba(148,163,184,.22);
+    --text:#e5e7eb;
+    --muted:#9ca3af;
+    --accent:#6366f1;
+    --accent-strong:#4f46e5;
+}
+
+.ce-topbar{
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(18px);
+    background: linear-gradient(to right, rgba(15,23,42,.92), rgba(15,23,42,.78));
+    border-bottom: 1px solid var(--border);
+}
+
+.ce-topbar__inner{
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: .85rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.ce-brand{
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    color: var(--text);
+    font-weight: 700;
+    text-decoration: none;
+    letter-spacing: .04em;
+}
+
+.ce-brand__logo{
+    font-size: 1.35rem;
+}
+
+.ce-brand__text{
+    white-space: nowrap;
+}
+
+.ce-nav{
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.ce-nav__link{
+    color: var(--muted);
+    text-decoration: none;
+    padding: .42rem .85rem;
+    border-radius: 999px;
+    font-size: .92rem;
+    transition: background .18s ease, color .18s ease, transform .12s ease;
+}
+
+.ce-nav__link:hover{
+    color: var(--text);
+    background: rgba(148,163,184,.14);
+    transform: translateY(-1px);
+}
+
+.ce-nav__link.active{
+    color: #fff;
+    background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+    box-shadow: 0 10px 28px rgba(99,102,241,.35);
+}
+
+.ce-btn{
+    border: none;
+    cursor: pointer;
+    padding: .42rem .9rem;
+    border-radius: 999px;
+    font-size: .92rem;
+    background: transparent;
+    color: var(--text);
+}
+
+.ce-btn--outline{
+    border: 1px solid rgba(99,102,241,.85);
+}
+
+.ce-btn--outline:hover{
+    background: rgba(99,102,241,.14);
+}
+
+@media (max-width: 900px){
+    .ce-topbar__inner{
+        flex-wrap: wrap;
+    }
+
+    .ce-nav{
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
