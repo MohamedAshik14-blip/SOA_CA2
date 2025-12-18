@@ -1,0 +1,115 @@
+@page "/login"
+@using CollegeEventsBlazor.Models
+@using CollegeEventsBlazor.Services
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+<div class="ce-page">
+    <section class="ce-auth">
+        <div class="ce-auth__card ce-card">
+            <div class="ce-auth__top">
+                <div class="ce-hero__badge">
+                    <span class="ce-dot"></span>
+                    <span>Welcome back</span>
+                </div>
+
+                <h1 class="ce-auth__title">Login</h1>
+                <p class="ce-muted">Use your student number and password to continue.</p>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="ce-alert ce-alert--error" style="margin-top:1rem;">
+                    <div class="ce-alert__title">Login failed</div>
+                    <div class="ce-muted">@_error</div>
+                </div>
+            }
+
+            <div class="ce-auth__form">
+                <div class="ce-field">
+                    <label class="ce-label">Student Number</label>
+                    <input class="ce-input"
+                           placeholder="Student Number"
+                           @bind="_studentNumber"
+                           @bind:event="oninput" />
+                </div>
+
+                <div class="ce-field">
+                    <label class="ce-label">Password</label>
+                    <input class="ce-input"
+                           type="password"
+                           placeholder="••••••••"
+                           @bind="_password"
+                           @bind:event="oninput" />
+                </div>
+
+                <div class="ce-auth__actions">
+                    <button class="ce-btn ce-btn--primary"
+                            @onclick="DoLogin"
+                            disabled="@_busy">
+                        @(_busy ? "Signing in..." : "Login")
+                    </button>
+
+                    <button class="ce-btn ce-btn--outline"
+                            @onclick="@(() => Nav.NavigateTo("/register"))"
+                            disabled="@_busy">
+                        Create account
+                    </button>
+                </div>
+
+                <div class="ce-auth__footer">
+                    <button class="ce-btn ce-btn--ghost"
+                            @onclick="@(() => Nav.NavigateTo("/"))"
+                            disabled="@_busy">
+                        ← Back to Home
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <aside class="ce-auth__side ce-card">
+            <h3 class="ce-h2" style="margin:0;">Tips</h3>
+            <hr class="ce-sep" />
+            <ul class="ce-muted" style="margin:0; padding-left:1.1rem; line-height:1.7;">
+                <li>Admins are redirected to <b>Admin Events</b>.</li>
+                <li>Students are redirected to the <b>Student Portal</b>.</li>
+                <li>If you get “Unauthorized”, check your API is running.</li>
+            </ul>
+        </aside>
+    </section>
+</div>
+
+@code {
+    private string _studentNumber = "";
+    private string _password = "";
+    private string _error = "";
+    private bool _busy = false;
+
+    private async Task DoLogin()
+    {
+        _error = "";
+        _busy = true;
+
+        try
+        {
+            var res = await Auth.LoginAsync(new LoginRequest
+            {
+                StudentNumber = _studentNumber.Trim(),
+                Password = _password
+            });
+
+            if (res.Role.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+                Nav.NavigateTo("admin/events");
+            else
+                Nav.NavigateTo("student");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
