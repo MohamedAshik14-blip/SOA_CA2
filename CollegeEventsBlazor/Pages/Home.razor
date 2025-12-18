@@ -1,1 +1,387 @@
-﻿
+@page "/"
+@using CollegeEventsBlazor.Models
+@using CollegeEventsBlazor.Services
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<div class="main">
+
+
+    <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-header" style="align-items:center;">
+            <div style="max-width:680px;">
+                <h1 class="page-title" style="margin:0;">DKIT Events</h1>
+                <p class="muted" style="margin:.45rem 0 0;">
+                    Browse campus events, register quickly, and track your attendance.
+                </p>
+
+                <div class="actions" style="margin-top:.9rem;">
+                    <button class="btn-primary" @onclick="@(() => Nav.NavigateTo("/events"))">Browse Events</button>
+                    <button class="btn-outline" @onclick="@(() => Nav.NavigateTo("/student"))">Student Portal</button>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+                <button class="btn-outline"
+                        @onclick="Reload"
+                        disabled="@_loading">
+                    @(_loading ? "Loading..." : "Reload")
+                </button>
+            </div>
+        </div>
+
+        <hr />
+
+  
+        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;">
+            <div class="list-item">
+                <div class="muted small">Total Events</div>
+                <div style="font-size:1.35rem;font-weight:800;margin-top:.15rem;">
+                    @_events.Count
+                </div>
+            </div>
+
+            <div class="list-item">
+                <div class="muted small">Upcoming</div>
+                <div style="font-size:1.35rem;font-weight:800;margin-top:.15rem;">
+                    @_upcomingCount
+                </div>
+            </div>
+
+            <div class="list-item">
+                <div class="muted small">Soonest Start</div>
+                <div style="font-size:1.05rem;font-weight:700;margin-top:.15rem;">
+                    @_soonestText
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="card">
+        <div class="card-header" style="align-items:flex-end;">
+            <div>
+                <h2 style="margin:0;">Upcoming Events</h2>
+                <p class="muted small" style="margin:.35rem 0 0;">
+                   
+                </p>
+            </div>
+
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end;">
+                <div style="min-width:240px;">
+                    <label class="muted small" style="margin:0;">Search</label>
+                    <input placeholder="e.g., hackathon, workshop..."
+                           value="@Query"
+                           @oninput="OnQueryInput" />
+                </div>
+
+                <div style="min-width:210px;">
+                    <label class="muted small" style="margin:0;">Category</label>
+                    <select value="@SelectedCategoryIdStr" @onchange="OnCategoryChanged">
+                        <option value="0">All categories</option>
+                        @foreach (var c in _categoryOptions)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div style="min-width:210px;">
+                    <label class="muted small" style="margin:0;">Venue</label>
+                    <select value="@SelectedVenueIdStr" @onchange="OnVenueChanged">
+                        <option value="0">All venues</option>
+                        @foreach (var v in _venueOptions)
+                        {
+                            <option value="@v.Id">@v.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div style="min-width:210px;">
+                    <label class="muted small" style="margin:0;">Sort</label>
+                    <select value="@Sort" @onchange="OnSortChanged">
+                        <option value="startAsc">Start (earliest)</option>
+                        <option value="startDesc">Start (latest)</option>
+                        <option value="capacityDesc">Capacity (high → low)</option>
+                        <option value="titleAsc">Title (A → Z)</option>
+                    </select>
+                </div>
+
+                <button class="btn-outline" @onclick="ClearFilters" style="margin-top:1.05rem;">
+                    Clear
+                </button>
+            </div>
+        </div>
+
+        <hr />
+
+        @if (_loading)
+        {
+            <p class="muted">Loading events…</p>
+        }
+        else if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="list-item" style="border-color: rgba(239,68,68,.35);">
+                <div style="font-weight:800;color:#fecaca;">Error</div>
+                <div class="muted">@_error</div>
+                <div class="actions">
+                    <button class="btn-primary" @onclick="Reload">Try again</button>
+                </div>
+            </div>
+        }
+        else if (_filtered.Count == 0)
+        {
+            <div class="list-item">
+                <div style="font-weight:800;">No matching events</div>
+                <div class="muted small">
+                    Try a different search term or clear the filters.
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="list">
+                @foreach (var e in _filtered)
+                {
+                    var remaining = Math.Max(0, e.Capacity - e.RegistrationCount);
+
+                    <div class="list-item">
+                        <div class="list-item-header">
+                            <div style="min-width:240px;">
+                                <div style="font-weight:800;font-size:1.02rem;">Event: @e.Title</div>
+
+                                <div class="muted small" style="margin-top:.2rem;display:flex;gap:.4rem;flex-wrap:wrap;">
+                                    @if (!string.IsNullOrWhiteSpace(e.CategoryName))
+                                    {
+                                        <span class="chip">Category: @e.CategoryName</span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(e.VenueName))
+                                    {
+                                        <span class="chip">Venue: @e.VenueName</span>
+                                    }
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(e.Description))
+                                {
+                                    <div class="muted small" style="margin-top:.2rem;">
+                                        @e.Description
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="muted small" style="margin-top:.2rem;">
+                                        No description
+                                    </div>
+                                }
+                            </div>
+
+                            <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end;">
+                                <span class="badge">@($"{e.Capacity} seats")</span>
+
+                            
+                                <span class="badge" style="background: rgba(59,130,246,.14); border-color: rgba(59,130,246,.55);">
+                                    @($"{e.RegistrationCount} registered")
+                                </span>
+
+                            
+                                <span class="badge" style="background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.55);">
+                                    @($"{remaining} left")
+                                </span>
+
+                                <span class="badge" style="background: rgba(34,197,94,.14); border-color: rgba(34,197,94,.55);">
+                                    @StatusLabel(e)
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="muted small" style="margin-top:.35rem;">
+                            Start: <b>@e.StartTime.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</b>
+                            &nbsp;•&nbsp;
+                            End: <b>@e.EndTime.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</b>
+                        </div>
+
+                        <div class="actions">
+                            <button class="btn-primary"
+                                    @onclick="@(() => Nav.NavigateTo($"/student?eventId={e.Id}"))">
+                                Register
+                            </button>
+                            <button class="btn-outline"
+                                    @onclick="@(() => Nav.NavigateTo("/events"))">
+                                View all
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<EventDto> _events = new();
+    private List<EventDto> _filtered = new();
+
+    private List<(int Id, string Name)> _categoryOptions = new();
+    private List<(int Id, string Name)> _venueOptions = new();
+
+    private bool _loading = true;
+    private string _error = "";
+
+    private string _query = "";
+    private string _sort = "startAsc";
+
+    private int _selectedCategoryId = 0;
+    private int _selectedVenueId = 0;
+
+    private string Query => _query;
+    private string Sort => _sort;
+    private string SelectedCategoryIdStr => _selectedCategoryId.ToString();
+    private string SelectedVenueIdStr => _selectedVenueId.ToString();
+
+    private int _upcomingCount = 0;
+    private string _soonestText = "-";
+
+    protected override async Task OnInitializedAsync()
+        => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        _error = "";
+
+        try
+        {
+            var data = await Api.GetEventsAsync();
+            _events = data ?? new();
+
+            BuildFilterOptions();
+            ComputeStats();
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _events = new();
+            _filtered = new();
+            _categoryOptions = new();
+            _venueOptions = new();
+            _upcomingCount = 0;
+            _soonestText = "-";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void BuildFilterOptions()
+    {
+        _categoryOptions = _events
+            .Where(e => e.CategoryId > 0 && !string.IsNullOrWhiteSpace(e.CategoryName))
+            .GroupBy(e => e.CategoryId)
+            .Select(g => (Id: g.Key, Name: g.First().CategoryName!))
+            .OrderBy(x => x.Name)
+            .ToList();
+
+        _venueOptions = _events
+            .Where(e => e.VenueId > 0 && !string.IsNullOrWhiteSpace(e.VenueName))
+            .GroupBy(e => e.VenueId)
+            .Select(g => (Id: g.Key, Name: g.First().VenueName!))
+            .OrderBy(x => x.Name)
+            .ToList();
+
+        if (_selectedCategoryId != 0 && !_categoryOptions.Any(x => x.Id == _selectedCategoryId))
+            _selectedCategoryId = 0;
+
+        if (_selectedVenueId != 0 && !_venueOptions.Any(x => x.Id == _selectedVenueId))
+            _selectedVenueId = 0;
+    }
+
+    private void OnQueryInput(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+        ApplyFilters();
+    }
+
+    private void OnSortChanged(ChangeEventArgs e)
+    {
+        _sort = e.Value?.ToString() ?? "startAsc";
+        ApplyFilters();
+    }
+
+    private void OnCategoryChanged(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? "0";
+        _selectedCategoryId = int.TryParse(raw, out var id) ? id : 0;
+        ApplyFilters();
+    }
+
+    private void OnVenueChanged(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? "0";
+        _selectedVenueId = int.TryParse(raw, out var id) ? id : 0;
+        ApplyFilters();
+    }
+
+    private void ClearFilters()
+    {
+        _query = "";
+        _sort = "startAsc";
+        _selectedCategoryId = 0;
+        _selectedVenueId = 0;
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        var q = (_query ?? "").Trim().ToLowerInvariant();
+        IEnumerable<EventDto> list = _events;
+
+        var now = DateTime.UtcNow;
+        list = list.Where(e => e.EndTime >= now);
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            list = list.Where(e =>
+                (e.Title ?? "").ToLowerInvariant().Contains(q) ||
+                (e.Description ?? "").ToLowerInvariant().Contains(q)
+            );
+        }
+
+        if (_selectedCategoryId != 0)
+            list = list.Where(e => e.CategoryId == _selectedCategoryId);
+
+        if (_selectedVenueId != 0)
+            list = list.Where(e => e.VenueId == _selectedVenueId);
+
+        list = _sort switch
+        {
+            "startDesc" => list.OrderByDescending(e => e.StartTime),
+            "capacityDesc" => list.OrderByDescending(e => e.Capacity),
+            "titleAsc" => list.OrderBy(e => e.Title),
+            _ => list.OrderBy(e => e.StartTime),
+        };
+
+        _filtered = list.Take(8).ToList();
+        StateHasChanged();
+    }
+
+    private void ComputeStats()
+    {
+        var now = DateTime.UtcNow;
+        var upcoming = _events.Where(e => e.StartTime > now).OrderBy(e => e.StartTime).ToList();
+        _upcomingCount = upcoming.Count;
+
+        _soonestText = upcoming.Count == 0
+            ? "-"
+            : upcoming[0].StartTime.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+    }
+
+    private string StatusLabel(EventDto e)
+    {
+        var now = DateTime.UtcNow;
+        if (e.EndTime < now) return "Completed";
+        if (e.StartTime <= now && e.EndTime >= now) return "Live";
+        return "Upcoming";
+    }
+}﻿
