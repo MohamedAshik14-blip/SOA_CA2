@@ -1,0 +1,15 @@
+# flyctl launch added from .idea/.idea.CollegeEventsBlazor.dir/.idea/.gitignore
+# Default ignored files
+.idea/.idea.CollegeEventsBlazor.dir/.idea/shelf
+.idea/.idea.CollegeEventsBlazor.dir/.idea/workspace.xml
+# Rider ignored files
+.idea/.idea.CollegeEventsBlazor.dir/.idea/projectSettingsUpdater.xml
+.idea/.idea.CollegeEventsBlazor.dir/.idea/modules.xml
+.idea/.idea.CollegeEventsBlazor.dir/.idea/contentModel.xml
+.idea/.idea.CollegeEventsBlazor.dir/.idea/.idea.CollegeEventsBlazor.iml
+# Editor-based HTTP Client requests
+.idea/.idea.CollegeEventsBlazor.dir/.idea/httpRequests
+# Datasource local storage ignored files
+.idea/.idea.CollegeEventsBlazor.dir/.idea/dataSources
+.idea/.idea.CollegeEventsBlazor.dir/.idea/dataSources.local.xml
+fly.toml
