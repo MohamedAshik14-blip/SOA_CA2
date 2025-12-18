@@ -1,0 +1,198 @@
+@page "/events"
+@using CollegeEventsBlazor.Models
+@using CollegeEventsBlazor.Services
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<div class="main">
+
+    <div class="header-row">
+        <div>
+            <h1 class="page-title">Events</h1>
+            <p class="muted">Browse upcoming events and view details.</p>
+        </div>
+
+        <div class="header-actions">
+            <button class="btn-outline" @onclick="Load" disabled="@_loading">Reload</button>
+            <button class="btn-primary" @onclick="@(() => Nav.NavigateTo("/student"))">Go to Student</button>
+        </div>
+    </div>
+
+    <div class="grid" style="margin-top:1.1rem;">
+
+        <div class="card">
+            <div class="card-title-row">
+                <h2 style="margin:0;">All Events</h2>
+                <span class="badge">@(_events?.Count ?? 0) total</span>
+            </div>
+
+            <hr class="hr-soft" />
+
+            @if (_loading)
+            {
+                <p class="muted">Loading events…</p>
+            }
+            else if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="alertbox">
+                    <b style="color:#fecaca;">Error</b>
+                    <div class="muted" style="margin-top:.25rem;">@_error</div>
+                    <div class="event-actions">
+                        <button class="btn-primary" @onclick="Load">Try again</button>
+                    </div>
+                </div>
+            }
+            else if (_events == null || _events.Count == 0)
+            {
+                <p class="muted">No events found.</p>
+            }
+            else
+            {
+                @foreach (var e in _events.OrderBy(x => x.StartTime))
+                {
+                    var regCount = GetRegisteredCount(e.Id);
+
+                    <div class="event-item">
+                        <div class="event-top">
+                            <div style="min-width:220px;">
+                                <div class="event-title"><b>Event: @e.Title</b></div>
+
+                              
+                                <div class="muted small" style="margin-top:.25rem; display:grid; gap:.15rem;">
+                             
+                                    <div><b>Venue: </b> @(string.IsNullOrWhiteSpace(e.VenueName) ? "—" : e.VenueName)</div>
+                                    <div><b>Category: </b> @(string.IsNullOrWhiteSpace(e.CategoryName) ? "—" : e.CategoryName)</div>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(e.Description))
+                                {
+                                    <div class="event-desc">@e.Description</div>
+                                }
+                            </div>
+
+                            <div class="event-meta">
+                                <span class="badge">@($"{e.Capacity} seats")</span>
+
+                               
+                                <span class="badge">
+                                    @(regCount.HasValue ? $"{regCount.Value} registered" : "— registered")
+                                </span>
+
+                                <span class="badge">#@e.Id</span>
+                            </div>
+                        </div>
+
+                        <div class="event-times">
+                            <div>
+                                <div class="event-time-label">Start</div>
+                                <div class="event-time-value">@e.StartTime.ToLocalTime():dd/MM/yyyy HH:mm</div>
+                            </div>
+                            <div>
+                                <div class="event-time-label">End</div>
+                                <div class="event-time-value">@e.EndTime.ToLocalTime():dd/MM/yyyy HH:mm</div>
+                            </div>
+                        </div>
+
+                        <div class="event-actions">
+                            <button class="btn-primary" @onclick="@(() => Nav.NavigateTo($"/student?eventId={e.Id}"))">
+                                Register
+                            </button>
+                            <button class="btn-outline" @onclick="@(() => ShowDetails(e))">
+                                Details
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+      
+        <div class="card">
+            <h2 style="margin:0;">Tips</h2>
+            <hr class="hr-soft" />
+
+            <ul class="tips-list">
+                <li>Use <b>Register</b> to jump to Student Portal.</li>
+                <li>Admins can manage events in the Admin section.</li>
+                <li>Times are shown in your local timezone.</li>
+            </ul>
+
+            @if (!string.IsNullOrWhiteSpace(_details))
+            {
+                <div class="selected-box">
+                    <b>Selected Event</b>
+                    <div class="muted" style="margin-top:.25rem;">@_details</div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<EventDto>? _events;
+    private bool _loading;
+    private string _error = "";
+    private string _details = "";
+
+
+    private Dictionary<int, int> _regCounts = new();
+    private bool _regCountsAvailable = false;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        _error = "";
+        _details = "";
+        _regCounts = new();
+        _regCountsAvailable = false;
+
+        try
+        {
+            _events = await Api.GetEventsAsync();
+
+          
+            try
+            {
+                var regs = await Api.AllRegistrationsAsync();
+                _regCounts = regs
+                    .GroupBy(r => r.EventId)
+                    .ToDictionary(g => g.Key, g => g.Count());
+
+                _regCountsAvailable = true;
+            }
+            catch
+            {
+               
+                _regCountsAvailable = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _events = new();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private int? GetRegisteredCount(int eventId)
+    {
+        if (!_regCountsAvailable) return null;
+        return _regCounts.TryGetValue(eventId, out var c) ? c : 0;
+    }
+
+    private void ShowDetails(EventDto e)
+    {
+        _details =
+          
+            $"Category: {(string.IsNullOrWhiteSpace(e.CategoryName) ? "—" : e.CategoryName)} • " +
+            $"Venue: {(string.IsNullOrWhiteSpace(e.VenueName) ? "—" : e.VenueName)} • " +
+            $"{e.StartTime.ToLocalTime():dd/MM/yyyy HH:mm} → {e.EndTime.ToLocalTime():dd/MM/yyyy HH:mm} • " +
+            $"{e.Capacity} seats • " +
+            $"{(GetRegisteredCount(e.Id)?.ToString() ?? "—")} registered";
+    }
+}
