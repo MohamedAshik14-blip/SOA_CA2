@@ -1,0 +1,415 @@
+@page "/admin/registrations"
+@using CollegeEventsBlazor.Models
+@using CollegeEventsBlazor.Services
+@inject ApiClient Api
+
+<AuthorizeView Roles="Admin">
+    <Authorized>
+
+        <div class="main">
+            <div class="card">
+
+                <div class="card-header">
+                    <div>
+                        <h1 class="page-title">Admin • Event Registrations</h1>
+                        <p class="muted">View all student registrations and manage attendance.</p>
+                    </div>
+
+                    <button type="button" class="btn-icon" title="Reload" @onclick="ReloadAll">⟳</button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger">@_error</div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_ok))
+                {
+                    <div class="alert alert-ok">@_ok</div>
+                }
+
+                <!-- ✅ FILTERS -->
+                <div class="card card-soft" style="margin-top:1rem;">
+                    <div class="card-header" style="align-items:flex-end;">
+                        <div>
+                            <h2 class="section-title" style="margin:0;">Filters</h2>
+                            <p class="muted small" style="margin:.25rem 0 0;">Filter by event/venue/category/student and sort.</p>
+                        </div>
+
+                        <button type="button" class="btn-ghost" @onclick="ClearFilters">Clear</button>
+                    </div>
+
+                    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;">
+                        <div>
+                            <label class="muted small">Search (student/event)</label>
+                            <input class="input"
+                                   placeholder="Student/Event Name"
+                                   value="@Query"
+                                   @oninput="OnQueryInput" />
+                        </div>
+
+                        <div>
+                            <label class="muted small">Event</label>
+                            <select class="input" value="@SelectedEventIdStr" @onchange="OnEventChanged">
+                                <option value="0">All events</option>
+                                @foreach (var opt in _eventOptions)
+                                {
+                                    <option value="@opt.Id">@opt.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="muted small">Category</label>
+                            <select class="input" value="@SelectedCategoryIdStr" @onchange="OnCategoryChanged">
+                                <option value="0">All categories</option>
+                                @foreach (var opt in _categoryOptions)
+                                {
+                                    <option value="@opt.Id">@opt.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="muted small">Venue</label>
+                            <select class="input" value="@SelectedVenueIdStr" @onchange="OnVenueChanged">
+                                <option value="0">All venues</option>
+                                @foreach (var opt in _venueOptions)
+                                {
+                                    <option value="@opt.Id">@opt.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="muted small">Status</label>
+                            <select class="input" value="@Status" @onchange="OnStatusChanged">
+                                <option value="all">All</option>
+                                <option value="registered">Registered (not checked-in)</option>
+                                <option value="checkedin">Checked-in</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="muted small">Sort</label>
+                            <select class="input" value="@Sort" @onchange="OnSortChanged">
+                                <option value="newest">Newest first</option>
+                                <option value="oldest">Oldest first</option>
+                                <option value="studentAsc">Student (A → Z)</option>
+                                <option value="eventAsc">Event title (A → Z)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="sep" />
+
+                @if (_loading)
+                {
+                    <p class="muted">Loading registrations…</p>
+                }
+                else if (_filtered.Count == 0)
+                {
+                    <p class="muted">No registrations match the filters.</p>
+                }
+                else
+                {
+                    <div class="list">
+                        @foreach (var r in _filtered)
+                        {
+                            var evt = GetEvent(r.EventId);
+
+                            <div class="list-item">
+
+                                <div class="list-item-header">
+                                    <div>
+                                        <div style="font-weight:800;">@r.StudentName</div>
+                                        <div class="muted small">Student #: @r.StudentNumber</div>
+
+                                        <div class="muted small" style="margin-top:.25rem; display:flex; gap:.4rem; flex-wrap:wrap;">
+                                            <span class="chip">Event #@r.EventId</span>
+
+                                            @if (!string.IsNullOrWhiteSpace(evt?.CategoryName))
+                                            {
+                                                <span class="chip">@evt!.CategoryName</span>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(evt?.VenueName))
+                                            {
+                                                <span class="chip">@evt!.VenueName</span>
+                                            }
+
+                                            <span class="badge" style="background: rgba(34,197,94,.14); border-color: rgba(34,197,94,.55);">
+                                                @StatusLabel(r)
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="muted small">
+                                    <b>Event:</b> @r.EventTitle
+                                </div>
+
+                                <div class="muted small">
+                                    <b>Check-in:</b> @(r.CheckInTime?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")
+                                    &nbsp; | &nbsp;
+                                    <b>Check-out:</b> @(r.CheckOutTime?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")
+                                </div>
+
+                                <div class="row-actions">
+                                    <button type="button"
+                                            class="btn-outline"
+                                            disabled="@((r.CheckInTime != null))"
+                                            @onclick="() => ForceIn(r.StudentId, r.EventId)">
+                                        Force Check-in
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn-outline"
+                                            disabled="@((r.CheckInTime == null || r.CheckOutTime != null))"
+                                            @onclick="() => ForceOut(r.StudentId, r.EventId)">
+                                        Force Check-out
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn-danger"
+                                            @onclick="() => Remove(r.StudentId, r.EventId)">
+                                        Remove
+                                    </button>
+                                </div>
+
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+    </Authorized>
+
+    <NotAuthorized>
+        <div class="main">
+            <div class="card">
+                <h2>Admin only</h2>
+                <p class="muted">You do not have permission to view this page.</p>
+            </div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _loading = true;
+
+    private List<RegistrationReadDto> _regs = new();
+    private List<RegistrationReadDto> _filtered = new();
+
+    private List<EventDto> _events = new();
+
+    // dropdown options
+    private List<(int Id, string Name)> _eventOptions = new();
+    private List<(int Id, string Name)> _categoryOptions = new();
+    private List<(int Id, string Name)> _venueOptions = new();
+
+    // filters
+    private string _query = "";
+    private int _selectedEventId = 0;
+    private int _selectedCategoryId = 0;
+    private int _selectedVenueId = 0;
+    private string _status = "all";
+    private string _sort = "newest";
+
+    private string _error = "";
+    private string _ok = "";
+
+    // expose for value=
+    private string Query => _query;
+    private string Status => _status;
+    private string Sort => _sort;
+    private string SelectedEventIdStr => _selectedEventId.ToString();
+    private string SelectedCategoryIdStr => _selectedCategoryId.ToString();
+    private string SelectedVenueIdStr => _selectedVenueId.ToString();
+
+    protected override async Task OnInitializedAsync()
+        => await ReloadAll();
+
+    private async Task ReloadAll()
+    {
+        _loading = true;
+        _error = "";
+        _ok = "";
+
+        try
+        {
+            _events = await Api.GetEventsAsync();
+            _regs = await Api.AllRegistrationsAsync();
+
+            BuildOptions();
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _events = new();
+            _regs = new();
+            _filtered = new();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private EventDto? GetEvent(int eventId) => _events.FirstOrDefault(e => e.Id == eventId);
+
+    private void BuildOptions()
+    {
+        _eventOptions = _events
+            .OrderBy(e => e.StartTime)
+            .Select(e => (e.Id, $"{e.Title} ({e.StartTime.ToLocalTime():dd/MM HH:mm})"))
+            .ToList();
+
+        _categoryOptions = _events
+            .Where(e => e.CategoryId > 0 && !string.IsNullOrWhiteSpace(e.CategoryName))
+            .GroupBy(e => e.CategoryId)
+            .Select(g => (Id: g.Key, Name: g.First().CategoryName!))
+            .OrderBy(x => x.Name)
+            .ToList();
+
+        _venueOptions = _events
+            .Where(e => e.VenueId > 0 && !string.IsNullOrWhiteSpace(e.VenueName))
+            .GroupBy(e => e.VenueId)
+            .Select(g => (Id: g.Key, Name: g.First().VenueName!))
+            .OrderBy(x => x.Name)
+            .ToList();
+
+        // reset invalid selections after reload
+        if (_selectedEventId != 0 && !_eventOptions.Any(x => x.Id == _selectedEventId)) _selectedEventId = 0;
+        if (_selectedCategoryId != 0 && !_categoryOptions.Any(x => x.Id == _selectedCategoryId)) _selectedCategoryId = 0;
+        if (_selectedVenueId != 0 && !_venueOptions.Any(x => x.Id == _selectedVenueId)) _selectedVenueId = 0;
+    }
+
+    private void OnQueryInput(ChangeEventArgs e) { _query = e.Value?.ToString() ?? ""; ApplyFilters(); }
+    private void OnStatusChanged(ChangeEventArgs e) { _status = e.Value?.ToString() ?? "all"; ApplyFilters(); }
+    private void OnSortChanged(ChangeEventArgs e) { _sort = e.Value?.ToString() ?? "newest"; ApplyFilters(); }
+
+    private void OnEventChanged(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? "0";
+        _selectedEventId = int.TryParse(raw, out var id) ? id : 0;
+        ApplyFilters();
+    }
+
+    private void OnCategoryChanged(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? "0";
+        _selectedCategoryId = int.TryParse(raw, out var id) ? id : 0;
+        ApplyFilters();
+    }
+
+    private void OnVenueChanged(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? "0";
+        _selectedVenueId = int.TryParse(raw, out var id) ? id : 0;
+        ApplyFilters();
+    }
+
+    private void ClearFilters()
+    {
+        _query = "";
+        _selectedEventId = 0;
+        _selectedCategoryId = 0;
+        _selectedVenueId = 0;
+        _status = "all";
+        _sort = "newest";
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        IEnumerable<RegistrationReadDto> list = _regs;
+
+        var q = (_query ?? "").Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            list = list.Where(r =>
+                (r.StudentName ?? "").ToLowerInvariant().Contains(q) ||
+                (r.StudentNumber ?? "").ToLowerInvariant().Contains(q) ||
+                (r.EventTitle ?? "").ToLowerInvariant().Contains(q)
+            );
+        }
+
+        if (_selectedEventId != 0)
+            list = list.Where(r => r.EventId == _selectedEventId);
+
+        // join to events for venue/category filtering
+        if (_selectedCategoryId != 0)
+            list = list.Where(r => GetEvent(r.EventId)?.CategoryId == _selectedCategoryId);
+
+        if (_selectedVenueId != 0)
+            list = list.Where(r => GetEvent(r.EventId)?.VenueId == _selectedVenueId);
+
+        list = _status switch
+        {
+            "registered" => list.Where(r => r.CheckInTime == null && r.CheckOutTime == null),
+            "checkedin" => list.Where(r => r.CheckInTime != null && r.CheckOutTime == null),
+            "completed" => list.Where(r => r.CheckOutTime != null),
+            _ => list
+        };
+
+        list = _sort switch
+        {
+            "oldest" => list.OrderBy(r => r.CheckInTime ?? r.CheckOutTime ?? DateTime.MinValue),
+            "studentAsc" => list.OrderBy(r => r.StudentName).ThenBy(r => r.StudentNumber),
+            "eventAsc" => list.OrderBy(r => r.EventTitle).ThenBy(r => r.StudentName),
+            _ => list.OrderByDescending(r => r.CheckInTime ?? r.CheckOutTime ?? DateTime.MinValue)
+        };
+
+        _filtered = list.ToList();
+        StateHasChanged();
+    }
+
+    private string StatusLabel(RegistrationReadDto r)
+    {
+        if (r.CheckOutTime != null) return "Completed";
+        if (r.CheckInTime != null) return "Checked in";
+        return "Registered";
+    }
+
+    private async Task Load() => await ReloadAll();
+
+    private async Task ForceIn(int studentId, int eventId)
+    {
+        _error = ""; _ok = "";
+        try
+        {
+            await Api.AdminForceCheckInAsync(studentId, eventId);
+            _ok = "Student checked in.";
+            await ReloadAll();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task ForceOut(int studentId, int eventId)
+    {
+        _error = ""; _ok = "";
+        try
+        {
+            await Api.AdminForceCheckOutAsync(studentId, eventId);
+            _ok = "Student checked out.";
+            await ReloadAll();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task Remove(int studentId, int eventId)
+    {
+        _error = ""; _ok = "";
+        try
+        {
+            await Api.AdminRemoveAsync(studentId, eventId);
+            _ok = "Student removed from event.";
+            await ReloadAll();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+}

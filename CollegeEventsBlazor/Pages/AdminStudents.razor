@@ -1,0 +1,216 @@
+@page "/admin/students"
+@using CollegeEventsBlazor.Models
+@inject CollegeEventsBlazor.Services.StudentsService StudentsService
+
+<h3>Admin - Students</h3>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+@if (!string.IsNullOrWhiteSpace(_success))
+{
+    <div class="alert alert-success">@_success</div>
+}
+
+<button class="btn btn-primary mb-3" @onclick="Load">Refresh</button>
+
+@if (_students is null)
+{
+    <p>Loading...</p>
+}
+else if (_students.Count == 0)
+{
+    <p>No students found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Student #</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th style="width: 280px;">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var s in _students)
+        {
+            <tr>
+                <td>@s.Id</td>
+                <td>@s.StudentNumber</td>
+                <td>@s.FullName</td>
+                <td>@s.Email</td>
+                <td>@s.Role</td>
+                <td>
+                    <button class="btn btn-sm btn-warning me-2" @onclick="() => BeginEdit(s)">Edit</button>
+                    <button class="btn btn-sm btn-info me-2" @onclick="() => BeginPassword(s)">Reset PW</button>
+                    <button class="btn btn-sm btn-danger" @onclick="() => Delete(s)">Delete</button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@if (_editing != null)
+{
+    <hr />
+    <h4>Edit Student (@_editing.StudentNumber)</h4>
+
+    <div class="mb-2">
+        <label class="form-label">Full Name</label>
+        <input class="form-control" @bind="_editDto.FullName" />
+    </div>
+
+    <div class="mb-2">
+        <label class="form-label">Email</label>
+        <input class="form-control" @bind="_editDto.Email" />
+    </div>
+
+    <div class="mb-2">
+        <label class="form-label">Role</label>
+        <select class="form-select" @bind="_editDto.Role">
+            <option value="Student">Student</option>
+            <option value="Admin">Admin</option>
+        </select>
+    </div>
+
+    <button class="btn btn-success me-2" @onclick="SaveEdit">Save</button>
+    <button class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+}
+
+@if (_pwStudent != null)
+{
+    <hr />
+    <h4>Reset Password (@_pwStudent.StudentNumber)</h4>
+
+    <div class="mb-2">
+        <label class="form-label">New Password</label>
+        <input type="password" class="form-control" @bind="_pwDto.NewPassword" />
+    </div>
+
+    <button class="btn btn-success me-2" @onclick="SavePassword">Reset</button>
+    <button class="btn btn-secondary" @onclick="CancelPassword">Cancel</button>
+}
+
+@code {
+    private List<StudentReadDto>? _students;
+    private string? _error;
+    private string? _success;
+
+    private StudentReadDto? _editing;
+    private StudentAdminUpdateDto _editDto = new();
+
+    private StudentReadDto? _pwStudent;
+    private StudentAdminPasswordDto _pwDto = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _error = null;
+        _success = null;
+
+        try
+        {
+            _students = await StudentsService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void BeginEdit(StudentReadDto s)
+    {
+        _success = null;
+        _error = null;
+
+        _editing = s;
+        _editDto = new StudentAdminUpdateDto
+        {
+            FullName = s.FullName,
+            Email = s.Email,
+            Role = string.IsNullOrWhiteSpace(s.Role) ? "Student" : s.Role
+        };
+
+        _pwStudent = null;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (_editing == null) return;
+
+        var ok = await StudentsService.UpdateAsync(_editing.Id, _editDto);
+        if (!ok)
+        {
+            _error = "Update failed (check API response / token / Admin role).";
+            return;
+        }
+
+        _success = "Student updated.";
+        _editing = null;
+        await Load();
+    }
+
+    private void CancelEdit()
+    {
+        _editing = null;
+    }
+
+    private void BeginPassword(StudentReadDto s)
+    {
+        _success = null;
+        _error = null;
+
+        _pwStudent = s;
+        _pwDto = new StudentAdminPasswordDto();
+
+        _editing = null;
+    }
+
+    private async Task SavePassword()
+    {
+        if (_pwStudent == null) return;
+
+        var ok = await StudentsService.ResetPasswordAsync(_pwStudent.Id, _pwDto);
+        if (!ok)
+        {
+            _error = "Password reset failed.";
+            return;
+        }
+
+        _success = "Password reset successfully.";
+        _pwStudent = null;
+        _pwDto = new StudentAdminPasswordDto();
+    }
+
+    private void CancelPassword()
+    {
+        _pwStudent = null;
+        _pwDto = new StudentAdminPasswordDto();
+    }
+
+    private async Task Delete(StudentReadDto s)
+    {
+        _success = null;
+        _error = null;
+
+        var ok = await StudentsService.DeleteAsync(s.Id);
+        if (!ok)
+        {
+            _error = "Delete failed (maybe last admin or registrations exist).";
+            return;
+        }
+
+        _success = "Student deleted.";
+        await Load();
+    }
+}
