@@ -1,1 +1,59 @@
-﻿
+@using CollegeEventsBlazor.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Nav
+@inject AuthService Auth
+
+<header class="ce-topbar">
+    <div class="ce-topbar__inner">
+
+        <NavLink href="/" class="ce-brand" Match="NavLinkMatch.All">
+            <span class="ce-brand__logo">🎓</span>
+            <span class="ce-brand__text"><b>DKIT</b> Events</span>
+        </NavLink>
+
+        <AuthorizeView>
+            <Authorized Context="userAuth">
+                <nav class="ce-nav">
+                    <NavLink href="/" class="ce-nav__link" Match="NavLinkMatch.All">Home</NavLink>
+                    <NavLink href="/events" class="ce-nav__link">Events</NavLink>
+                    <NavLink href="/student" class="ce-nav__link">Student</NavLink>
+
+                  
+                    <AuthorizeView Roles="Admin">
+                        <Authorized Context="adminAuth">
+                            <NavLink href="/admin/events" class="ce-nav__link">Admin Events</NavLink>
+                            <NavLink href="/admin/registrations" class="ce-nav__link">Registrations</NavLink>
+                            <NavLink href="/admin/venues" class="ce-nav__link">Venues</NavLink>
+                            <NavLink href="/admin/categories" class="ce-nav__link">Categories</NavLink>
+                            <NavLink class="nav-link" href="admin/students">
+                                <span class="oi oi-people" aria-hidden="true"></span> Admin Students
+                            </NavLink>
+                            </Authorized>
+                    </AuthorizeView>
+
+                    <button class="ce-btn ce-btn--outline" @onclick="Logout">
+                        Logout
+                    </button>
+                </nav>
+            </Authorized>
+
+            <NotAuthorized>
+                <nav class="ce-nav">
+                    <NavLink href="/" class="ce-nav__link" Match="NavLinkMatch.All">Home</NavLink>
+                    <NavLink href="/events" class="ce-nav__link">Events</NavLink>
+                    <NavLink href="/login" class="ce-nav__link">Login</NavLink>
+                    <NavLink href="/register" class="ce-nav__link">Register</NavLink>
+                </nav>
+            </NotAuthorized>
+        </AuthorizeView>
+
+    </div>
+</header>
+
+@code {
+    private async Task Logout()
+    {
+        await Auth.LogoutAsync();
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+}﻿﻿

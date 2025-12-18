@@ -1,9 +1,9 @@
-using AutoMapper;
+using CollegeEventsApi.Data;
 using CollegeEventsApi.Dtos;
 using CollegeEventsApi.Models;
-using CollegeEventsApi.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace CollegeEventsApi.Controllers
 {
@@ -11,69 +11,121 @@ namespace CollegeEventsApi.Controllers
     [Route("api/[controller]")]
     public class EventsController : ControllerBase
     {
-        private readonly IRepository<Event> _eventRepo;
-        private readonly IMapper _mapper;
+        private readonly AppDbContext _context;
+        public EventsController(AppDbContext context) => _context = context;
 
-        public EventsController(IRepository<Event> eventRepo, IMapper mapper)
-        {
-            _eventRepo = eventRepo;
-            _mapper = mapper;
-        }
-
+        
         [HttpGet]
         public async Task<ActionResult<IEnumerable<EventReadDto>>> GetAll()
         {
-            var events = await _eventRepo.GetAllAsync();
-            return Ok(_mapper.Map<IEnumerable<EventReadDto>>(events));
+            var events = await _context.Events
+                .AsNoTracking()
+                .Include(e => e.Venue)
+                .Include(e => e.Category)
+                .Include(e => e.Registrations)
+                .OrderBy(e => e.StartTime)
+                .Select(e => new EventReadDto
+                {
+                    Id = e.Id,
+                    Title = e.Title,
+                    Description = e.Description,
+                    StartTime = e.StartTime,
+                    EndTime = e.EndTime,
+                    Capacity = e.Capacity,
+                    VenueId = e.VenueId,
+                    VenueName = e.Venue.Name,
+                    CategoryId = e.CategoryId,
+                    CategoryName = e.Category.Name,
+                    RegistrationCount = e.Registrations.Count
+                })
+                .ToListAsync();
+
+            return Ok(events);
         }
 
+     
         [HttpGet("{id:int}")]
-        public async Task<ActionResult<EventReadDto>> GetById(int id)
+        public async Task<ActionResult<EventReadDto>> GetOne(int id)
         {
-            var ev = await _eventRepo.GetByIdAsync(id);
-            if (ev == null) return NotFound();
+            var e = await _context.Events
+                .AsNoTracking()
+                .Include(x => x.Venue)
+                .Include(x => x.Category)
+                .FirstOrDefaultAsync(x => x.Id == id);
 
-            return Ok(_mapper.Map<EventReadDto>(ev));
+            if (e == null) return NotFound();
+
+            return Ok(new EventReadDto
+            {
+                Id = e.Id,
+                Title = e.Title,
+                Description = e.Description,
+                StartTime = e.StartTime,
+                EndTime = e.EndTime,
+                Capacity = e.Capacity,
+                VenueId = e.VenueId,
+                VenueName = e.Venue.Name,
+                CategoryId = e.CategoryId,
+                CategoryName = e.Category.Name
+            });
         }
 
-        [Authorize]
+      
+        [Authorize(Roles = "Admin")]
         [HttpPost]
         public async Task<ActionResult<EventReadDto>> Create(EventCreateDto dto)
         {
-            var ev = _mapper.Map<Event>(dto);
-            await _eventRepo.AddAsync(ev);
-            await _eventRepo.SaveChangesAsync();
+       
+            var venueExists = await _context.Venues.AnyAsync(v => v.Id == dto.VenueId);
+            if (!venueExists) return BadRequest("Venue not found");
 
-            var readDto = _mapper.Map<EventReadDto>(ev);
-            return CreatedAtAction(nameof(GetById), new { id = ev.Id }, readDto);
+            var categoryExists = await _context.Categories.AnyAsync(c => c.Id == dto.CategoryId);
+            if (!categoryExists) return BadRequest("Category not found");
+
+            if (dto.EndTime <= dto.StartTime)
+                return BadRequest("EndTime must be after StartTime");
+
+            if (dto.Capacity <= 0)
+                return BadRequest("Capacity must be at least 1");
+
+            var ev = new Event
+            {
+                Title = dto.Title.Trim(),
+                Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
+                StartTime = dto.StartTime,
+                EndTime = dto.EndTime,
+                Capacity = dto.Capacity,
+                VenueId = dto.VenueId,
+                CategoryId = dto.CategoryId
+            };
+
+            _context.Events.Add(ev);
+            await _context.SaveChangesAsync();
+
+         
+            var saved = await _context.Events
+                .AsNoTracking()
+                .Include(e => e.Venue)
+                .Include(e => e.Category)
+                .FirstAsync(e => e.Id == ev.Id);
+
+            return Ok(new EventReadDto
+            {
+                Id = saved.Id,
+                Title = saved.Title,
+                Description = saved.Description,
+                StartTime = saved.StartTime,
+                EndTime = saved.EndTime,
+                Capacity = saved.Capacity,
+                VenueId = saved.VenueId,
+                VenueName = saved.Venue.Name,
+                CategoryId = saved.CategoryId,
+                CategoryName = saved.Category.Name
+            });
         }
 
-        [Authorize]
-        [HttpPut("{id:int}")]
-        public async Task<ActionResult> Update(int id, EventUpdateDto dto)
-        {
-            var ev = await _eventRepo.GetByIdAsync(id);
-            if (ev == null) return NotFound();
 
-            _mapper.Map(dto, ev);
-            await _eventRepo.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        [Authorize]
-        [HttpDelete("{id:int}")]
-        public async Task<ActionResult> Delete(int id)
-        {
-            var ev = await _eventRepo.GetByIdAsync(id);
-            if (ev == null) return NotFound();
-
-            _eventRepo.Remove(ev);
-            await _eventRepo.SaveChangesAsync();
-
-            return NoContent();
-        }
-          [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin")]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, EventUpdateDto dto)
         {
@@ -117,7 +169,5 @@ namespace CollegeEventsApi.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
-    }
-}
     }
 }
