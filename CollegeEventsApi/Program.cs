@@ -1,4 +1,4 @@
-yModel.Tokens.Jwt;
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using CollegeEventsApi.Data;
 using CollegeEventsApi.Profiles;
@@ -18,6 +18,7 @@ JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
+
 var conn = builder.Configuration.GetConnectionString("DefaultConnection")
            ?? "Data Source=collegeevents.db";
 
@@ -35,6 +36,20 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddAutoMapper(typeof(MappingProfile));
 builder.Services.AddControllers();
+
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("blazor", policy =>
+        policy.WithOrigins(
+                "http://localhost:5191",
+                "https://localhost:7158",
+                "https://collegeeventsblazor.fly.dev"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+    );
+});
 
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
@@ -67,3 +82,41 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+
+
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
+
+if (!app.Environment.IsEnvironment("Test"))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
+app.UseSwagger();
+app.UseSwaggerUI();
+
+
+
+app.UseRouting();
+
+app.UseCors("blazor"); 
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
+
+public partial class Program { }
