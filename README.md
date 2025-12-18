@@ -46,6 +46,7 @@ The system allows **students** to register for events, check in/out, and view ev
 ### Backend
 - ASP.NET Core 8 Web API
 - Entity Framework Core
+- SQLite (Database)
 - JWT Authentication
 - xUnit (Unit & Integration Testing)
 
