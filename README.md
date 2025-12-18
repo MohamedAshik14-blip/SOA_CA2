@@ -37,6 +37,8 @@ The system allows **students** to register for events, check in/out, and view ev
   - Students
 - Reset student passwords
 - View all registrations
+- Force Check-in/out student
+- Edit Student Register events
 - Filter / Search / Sort events and students
 
 ---
