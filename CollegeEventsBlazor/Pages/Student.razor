@@ -1,0 +1,258 @@
+@page "/student"
+@using CollegeEventsBlazor.Models
+@using CollegeEventsBlazor.Services
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<div class="ce-page">
+
+    
+    <section class="ce-card">
+        <div class="ce-header">
+            <div>
+                <h1 class="ce-h2">Student Portal</h1>
+                <p class="ce-muted">Register for events and manage your attendance.</p>
+            </div>
+
+            <button class="ce-btn ce-btn--ghost" @onclick="ReloadAll">
+                Reload
+            </button>
+        </div>
+    </section>
+
+    <section class="ce-grid">
+
+     
+        <div class="ce-card">
+            <h3 class="ce-h3">Register for Event</h3>
+            <p class="ce-muted small">Choose an event and register instantly.</p>
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="ce-alert ce-alert--error">
+                    <div class="ce-alert__title">Action failed</div>
+                    <div class="ce-muted">@_error</div>
+                </div>
+            }
+
+            <div class="ce-field">
+                <label class="ce-label">Select Event</label>
+
+                <select class="ce-select" @bind="_selectedEventId">
+                    <option value="0">-- Choose event --</option>
+
+                    @foreach (var e in _events.OrderBy(x => x.StartTime))
+                    {
+                        <option value="@e.Id">
+                            @e.Title • @e.CategoryName • @e.VenueName (@e.StartTime.ToLocalTime())
+                        </option>
+                    }
+                </select>
+            </div>
+
+            <button class="ce-btn ce-btn--primary full-width"
+                    @onclick="Register"
+                    disabled="@(_selectedEventId == 0)">
+                Register
+            </button>
+        </div>
+
+       
+        <div class="ce-card">
+            <h3 class="ce-h3">My Registrations</h3>
+            <p class="ce-muted small">Check-in, check-out, or withdraw.</p>
+
+            @if (_regs == null)
+            {
+                <div class="ce-state">
+                    <div class="ce-spinner"></div>
+                    <div class="ce-muted">Loading registrations…</div>
+                </div>
+            }
+            else if (_regs.Count == 0)
+            {
+                <div class="ce-alert">
+                    <div class="ce-alert__title">No registrations</div>
+                    <div class="ce-muted">You haven’t registered for any events yet.</div>
+                </div>
+            }
+            else
+            {
+                <div class="ce-list">
+                    @foreach (var r in _regs)
+                    {
+                        <article class="ce-item">
+                            <div class="ce-item__top">
+                                <div>
+                                    <div class="ce-item__title">@r.EventTitle</div>
+                                    <div class="ce-muted small">Event ID #@r.EventId</div>
+                                </div>
+
+                                <span class="ce-badge">
+                                    @(r.CheckOutTime != null
+                                        ? "Completed"
+                                        : r.CheckInTime != null
+                                            ? "Checked in"
+                                            : "Registered")
+                                </span>
+                            </div>
+
+                            <div class="ce-item__time">
+                                <div>
+                                    <span class="ce-muted">In:</span>
+                                    <span class="ce-strong">
+                                        @(r.CheckInTime?.ToLocalTime().ToString("dd/MM HH:mm") ?? "-")
+                                    </span>
+                                </div>
+                                <div>
+                                    <span class="ce-muted">Out:</span>
+                                    <span class="ce-strong">
+                                        @(r.CheckOutTime?.ToLocalTime().ToString("dd/MM HH:mm") ?? "-")
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="ce-item__actions">
+                                <button class="ce-btn ce-btn--primary"
+                                        disabled="@(r.CheckInTime != null)"
+                                        @onclick="() => CheckIn(r.EventId)">
+                                    Check-in
+                                </button>
+
+                                <button class="ce-btn ce-btn--outline"
+                                        disabled="@(r.CheckInTime == null || r.CheckOutTime != null)"
+                                        @onclick="() => CheckOut(r.EventId)">
+                                    Check-out
+                                </button>
+
+                                <button class="ce-btn ce-btn--danger"
+                                        @onclick="() => Withdraw(r.EventId)">
+                                    Withdraw
+                                </button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+
+    </section>
+</div>
+
+@code {
+    private List<EventDto> _events = new();
+    private List<RegistrationReadDto>? _regs;
+
+    private int _selectedEventId = 0;
+    private string _error = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAll();
+    }
+
+    private async Task ReloadAll()
+    {
+        _error = "";
+        try
+        {
+            _events = await Api.GetEventsAsync();
+            _regs = await Api.MyRegistrationsAsync();
+
+            // after loading events, try selecting from query string if present
+            TryPickEventFromQuery();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _events = new();
+            _regs = new();
+        }
+    }
+
+  
+    private void TryPickEventFromQuery()
+    {
+        try
+        {
+            var uri = new Uri(Nav.Uri);
+
+           
+            var nvc = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var eventIdRaw = nvc.Get("eventId");
+
+            if (!string.IsNullOrWhiteSpace(eventIdRaw) && int.TryParse(eventIdRaw, out int eventId))
+            {
+                if (_events.Any(e => e.Id == eventId))
+                    _selectedEventId = eventId;
+            }
+        }
+        catch
+        {
+           
+        }
+    }
+
+    private async Task Register()
+    {
+        _error = "";
+        if (_selectedEventId == 0)
+        {
+            _error = "Please select an event.";
+            return;
+        }
+
+        try
+        {
+            await Api.RegisterForEventAsync(_selectedEventId);
+            _selectedEventId = 0;
+            _regs = await Api.MyRegistrationsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task CheckIn(int eventId)
+    {
+        _error = "";
+        try
+        {
+            await Api.CheckInAsync(eventId);
+            _regs = await Api.MyRegistrationsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task CheckOut(int eventId)
+    {
+        _error = "";
+        try
+        {
+            await Api.CheckOutAsync(eventId);
+            _regs = await Api.MyRegistrationsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task Withdraw(int eventId)
+    {
+        _error = "";
+        try
+        {
+            await Api.WithdrawAsync(eventId);
+            _regs = await Api.MyRegistrationsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

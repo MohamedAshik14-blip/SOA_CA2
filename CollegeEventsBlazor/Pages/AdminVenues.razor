@@ -1,0 +1,191 @@
+@page "/admin/venues"
+@using CollegeEventsBlazor.Models
+@using CollegeEventsBlazor.Services
+@inject ApiClient Api
+
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        <div class="main">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h1 class="page-title">Admin • Venues</h1>
+                        <p class="muted">Create, edit and delete venues.</p>
+                    </div>
+                    <button class="btn-icon" title="Reload" @onclick="Load">⟳</button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger">@_error</div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_ok))
+                {
+                    <div class="alert alert-ok">@_ok</div>
+                }
+
+                <div class="grid-2">
+                
+                    <div class="card card-soft">
+                        <div class="card-header">
+                            <h2 class="section-title">@(_editId == 0 ? "Create Venue" : $"Edit Venue #{_editId}")</h2>
+                            @if (_editId != 0)
+                            {
+                                <span class="chip">Editing</span>
+                            }
+                        </div>
+
+                        <div class="form">
+                            <label>Name</label>
+                            <input placeholder="e.g., Main Hall" @bind="_name" />
+
+                            <label>Address (optional)</label>
+                            <input placeholder="e.g., DKIT Campus, Building A" @bind="_address" />
+
+                            <div class="btn-row">
+                                <button class="btn-primary" @onclick="Save">Save</button>
+                                <button class="btn-ghost" @onclick="Clear">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LIST -->
+                    <div class="card card-soft">
+                        <div class="card-header">
+                            <h2 class="section-title">All Venues</h2>
+                            <button class="btn-ghost" @onclick="Load">Reload</button>
+                        </div>
+
+                        @if (_venues == null)
+                        {
+                            <p class="muted">Loading…</p>
+                        }
+                        else if (_venues.Count == 0)
+                        {
+                            <p class="muted">No venues yet.</p>
+                        }
+                        else
+                        {
+                            <div class="list">
+                                @foreach (var v in _venues.OrderBy(x => x.Name))
+                                {
+                                    <div class="list-item">
+                                        <div class="list-item-header">
+                                            <div>
+                                                <div style="font-weight:800;">@v.Name</div>
+                                                <div class="muted small">@((string.IsNullOrWhiteSpace(v.Address)) ? "—" : v.Address)</div>
+                                            </div>
+                                            <span class="chip">#@v.Id</span>
+                                        </div>
+
+                                        <div class="row-actions">
+                                            <button class="btn-outline" @onclick="() => Edit(v)">Edit</button>
+                                            <button class="btn-danger" @onclick="() => Delete(v.Id)">Delete</button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </Authorized>
+
+    <NotAuthorized>
+        <div class="main">
+            <div class="card">
+                <h2>Admin only</h2>
+                <p class="muted">You do not have permission to view this page.</p>
+            </div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private List<VenueDto>? _venues;
+    private int _editId;
+
+    private string _name = "";
+    private string? _address = "";
+
+    private string _error = "";
+    private string _ok = "";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _error = ""; _ok = "";
+        try
+        {
+            _venues = await Api.GetVenuesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _venues = new();
+        }
+    }
+
+    private void Edit(VenueDto v)
+    {
+        _editId = v.Id;
+        _name = v.Name;
+        _address = v.Address;
+        _error = ""; _ok = "";
+    }
+
+    private void Clear()
+    {
+        _editId = 0;
+        _name = "";
+        _address = "";
+        _error = ""; _ok = "";
+    }
+
+    private async Task Save()
+    {
+        _error = ""; _ok = "";
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_name))
+                throw new Exception("Name is required.");
+
+            var dto = new VenueDto
+            {
+                Id = _editId,
+                Name = _name.Trim(),
+                Address = string.IsNullOrWhiteSpace(_address) ? null : _address.Trim()
+            };
+
+            if (_editId == 0)
+            {
+                await Api.CreateVenueAsync(dto);
+                _ok = "Venue created.";
+            }
+            else
+            {
+                await Api.UpdateVenueAsync(_editId, dto);
+                _ok = "Venue updated.";
+            }
+
+            Clear();
+            await Load();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task Delete(int id)
+    {
+        _error = ""; _ok = "";
+        try
+        {
+            await Api.DeleteVenueAsync(id);
+            _ok = "Venue deleted.";
+            await Load();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+}

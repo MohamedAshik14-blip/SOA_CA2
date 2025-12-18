@@ -1,0 +1,382 @@
+@page "/admin/events"
+@using System.Globalization
+@using CollegeEventsBlazor.Models
+@using CollegeEventsBlazor.Services
+@inject ApiClient Api
+
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        <div class="main">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h1 class="page-title">Admin • Manage Events</h1>
+                       
+                    </div>
+
+                    <button type="button" class="btn-icon" title="Reload" @onclick="Load">⟳</button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger">@_error</div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_ok))
+                {
+                    <div class="alert alert-ok">@_ok</div>
+                }
+
+                <div class="grid-2">
+                    <!-- FORM -->
+                    <div class="card card-soft">
+                        <div class="card-header">
+                            <h2 class="section-title">@(_editId == 0 ? "Create Event" : $"Edit Event #{_editId}")</h2>
+                            @if (_editId != 0)
+                            {
+                                <span class="chip">Editing</span>
+                            }
+                        </div>
+
+                        <div class="form">
+                            <label>Title</label>
+                            <input class="input" placeholder="e.g., Freshers Welcome" @bind="_title" />
+
+                            <label>Description</label>
+                            <input class="input" placeholder="Short description" @bind="_description" />
+
+                            <label>Category</label>
+                            <select class="input" @bind="_categoryId">
+                                <option value="0">-- Select category --</option>
+                                @foreach (var c in _categories)
+                                {
+                                    <option value="@c.Id">@c.Name</option>
+                                }
+                            </select>
+
+                            <label>Venue</label>
+                            <select class="input" @bind="_venueId">
+                                <option value="0">-- Select venue --</option>
+                                @foreach (var v in _venues)
+                                {
+                                    <option value="@v.Id">@v.Name</option>
+                                }
+                            </select>
+
+                            <!-- Date + Time (manual binding to avoid DateOnly/TimeOnly binding issues) -->
+                            <div class="field-row">
+                                <div class="field">
+                                    <label>Start date</label>
+                                    <input class="input"
+                                           type="date"
+                                           value="@_startDateStr"
+                                           @onchange="OnStartDateChanged" />
+                                </div>
+
+                                <div class="field">
+                                    <label>Start time</label>
+                                    <input class="input"
+                                           type="time"
+                                           value="@_startTimeStr"
+                                           @onchange="OnStartTimeChanged" />
+                                </div>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field">
+                                    <label>End date</label>
+                                    <input class="input"
+                                           type="date"
+                                           value="@_endDateStr"
+                                           @onchange="OnEndDateChanged" />
+                                </div>
+
+                                <div class="field">
+                                    <label>End time</label>
+                                    <input class="input"
+                                           type="time"
+                                           value="@_endTimeStr"
+                                           @onchange="OnEndTimeChanged" />
+                                </div>
+                            </div>
+
+                            <label>Capacity</label>
+                            <input class="input" type="number" min="1" @bind="_capacity" />
+
+                            <div class="btn-row">
+                                <button type="button" class="btn-primary" @onclick="Save">Save</button>
+                                <button type="button" class="btn-ghost" @onclick="Clear">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LIST -->
+                    <div class="card card-soft">
+                        <div class="card-header">
+                            <h2 class="section-title">All Events</h2>
+                            <button type="button" class="btn-ghost" @onclick="Load">Reload</button>
+                        </div>
+
+                        @if (_events is null)
+                        {
+                            <p class="muted">Loading…</p>
+                        }
+                        else if (_events.Count == 0)
+                        {
+                            <p class="muted">No events yet.</p>
+                        }
+                        else
+                        {
+                            <div class="list">
+                                @foreach (var e in _events.OrderBy(x => x.StartTime))
+                                {
+                                    <div class="list-item">
+                                        <div class="list-item-header">
+                                            <div>
+                                                <div style="font-weight:800;">Event: @e.Title</div>
+
+                                                <div class="muted small" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.15rem;">
+                                                    @if (!string.IsNullOrWhiteSpace(e.CategoryName))
+                                                    {
+                                                        <span class="chip">Category: @e.CategoryName</span>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(e.VenueName))
+                                                    {
+                                                        <span class="chip">Venue: @e.VenueName</span>
+                                                    }
+                                                    <span class="chip">#@e.Id</span>
+                                                </div>
+
+                                                @if (!string.IsNullOrWhiteSpace(e.Description))
+                                                {
+                                                    <div class="muted small">@e.Description</div>
+                                                }
+                                            </div>
+
+                                            <span class="badge">@($"{e.Capacity} seats")</span>
+                                        </div>
+
+                                        <div class="muted small">
+                                            <b>@e.StartTime.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</b>
+                                            →
+                                            <b>@e.EndTime.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</b>
+                                        </div>
+
+                                        <div class="row-actions">
+                                            <button type="button" class="btn-outline" @onclick="() => Edit(e)">Edit</button>
+                                            <button type="button" class="btn-danger" @onclick="() => Delete(e.Id)">Delete</button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </Authorized>
+
+    <NotAuthorized>
+        <div class="main">
+            <div class="card">
+                <h2>Admin only</h2>
+                <p class="muted">You do not have permission to view this page.</p>
+            </div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private List<EventDto>? _events;
+
+    private List<VenueDto> _venues = new();
+    private List<CategoryDto> _categories = new();
+
+    private int _editId;
+    private string _title = "";
+    private string? _description = "";
+    private int _capacity = 50;
+
+    private int _venueId = 0;
+    private int _categoryId = 0;
+
+    // keep as strings (Safari may show dd/MM/yyyy + 07:00 AM)
+    private string _startDateStr = "";       // could be yyyy-MM-dd OR dd/MM/yyyy
+    private string _startTimeStr = "09:00";  // could be HH:mm OR hh:mm tt
+    private string _endDateStr = "";
+    private string _endTimeStr = "10:00";
+
+    private string _error = "";
+    private string _ok = "";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _error = ""; _ok = "";
+        try
+        {
+            _venues = await Api.GetVenuesAsync();
+            _categories = await Api.GetCategoriesAsync();
+            _events = await Api.GetEventsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _events = new();
+        }
+    }
+
+    private void OnStartDateChanged(ChangeEventArgs e) => _startDateStr = e.Value?.ToString() ?? "";
+    private void OnStartTimeChanged(ChangeEventArgs e) => _startTimeStr = e.Value?.ToString() ?? "";
+    private void OnEndDateChanged(ChangeEventArgs e) => _endDateStr = e.Value?.ToString() ?? "";
+    private void OnEndTimeChanged(ChangeEventArgs e) => _endTimeStr = e.Value?.ToString() ?? "";
+
+    private void Edit(EventDto e)
+    {
+        _editId = e.Id;
+        _title = e.Title;
+        _description = e.Description;
+        _capacity = e.Capacity;
+
+        _venueId = e.VenueId;
+        _categoryId = e.CategoryId;
+
+        var startLocal = e.StartTime.ToLocalTime();
+        var endLocal = e.EndTime.ToLocalTime();
+
+        // set to HTML-friendly values (still displays localized in UI)
+        _startDateStr = startLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        _startTimeStr = startLocal.ToString("HH:mm", CultureInfo.InvariantCulture);
+        _endDateStr = endLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        _endTimeStr = endLocal.ToString("HH:mm", CultureInfo.InvariantCulture);
+
+        _error = ""; _ok = "";
+    }
+
+    private void Clear()
+    {
+        _editId = 0;
+        _title = "";
+        _description = "";
+        _capacity = 50;
+
+        _venueId = 0;
+        _categoryId = 0;
+
+        _startDateStr = "";
+        _startTimeStr = "09:00";
+        _endDateStr = "";
+        _endTimeStr = "10:00";
+
+        _error = "";
+        _ok = "";
+    }
+
+    private static bool TryParseLocalDateTime(string dateStr, string timeStr, out DateTime local)
+    {
+        local = default;
+
+        dateStr = (dateStr ?? "").Trim();
+        timeStr = (timeStr ?? "").Trim();
+
+        if (string.IsNullOrWhiteSpace(timeStr)) timeStr = "00:00";
+
+        // Accept many formats (Safari / locale variations)
+        var dateFormats = new[] { "yyyy-MM-dd", "dd/MM/yyyy", "MM/dd/yyyy" };
+        var timeFormats = new[] { "HH:mm", "H:mm", "HH:mm:ss", "hh:mm tt", "h:mm tt" };
+
+        if (!DateTime.TryParseExact(dateStr, dateFormats, CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var d))
+            return false;
+
+        // time-only parse: use DateTime parsing against dummy date
+        if (!DateTime.TryParseExact(timeStr, timeFormats, CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var t))
+        {
+            // fallback: try current culture (some browsers/locales)
+            if (!DateTime.TryParse(timeStr, CultureInfo.CurrentCulture, DateTimeStyles.None, out t))
+                return false;
+        }
+
+        local = new DateTime(d.Year, d.Month, d.Day, t.Hour, t.Minute, 0);
+        return true;
+    }
+
+    private async Task Save()
+    {
+        _error = ""; _ok = "";
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_title))
+                throw new Exception("Title is required.");
+
+            if (_venueId == 0) throw new Exception("Please select a Venue.");
+            if (_categoryId == 0) throw new Exception("Please select a Category.");
+
+            if (string.IsNullOrWhiteSpace(_startDateStr) || string.IsNullOrWhiteSpace(_endDateStr))
+                throw new Exception("Start date and End date are required.");
+
+            if (!TryParseLocalDateTime(_startDateStr, _startTimeStr, out var startLocal))
+                throw new Exception("Start date/time is invalid.");
+
+            if (!TryParseLocalDateTime(_endDateStr, _endTimeStr, out var endLocal))
+                throw new Exception("End date/time is invalid.");
+
+            var startUtc = DateTime.SpecifyKind(startLocal, DateTimeKind.Local).ToUniversalTime();
+            var endUtc = DateTime.SpecifyKind(endLocal, DateTimeKind.Local).ToUniversalTime();
+
+            if (endUtc <= startUtc)
+                throw new Exception("End must be after Start.");
+
+            if (_capacity <= 0)
+                throw new Exception("Capacity must be at least 1.");
+
+            var dto = new EventDto
+            {
+                Id = _editId,
+                Title = _title.Trim(),
+                Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+                StartTime = startUtc,
+                EndTime = endUtc,
+                Capacity = _capacity,
+                VenueId = _venueId,
+                CategoryId = _categoryId
+            };
+
+            if (_editId == 0)
+            {
+                await Api.CreateEventAsync(dto);
+                _ok = "Event created.";
+            }
+            else
+            {
+                await Api.UpdateEventAsync(_editId, dto);
+                _ok = "Event updated.";
+            }
+
+            Clear();
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task Delete(int id)
+    {
+        _error = ""; _ok = "";
+        try
+        {
+            await Api.DeleteEventAsync(id);
+            _ok = "Deleted.";
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}
